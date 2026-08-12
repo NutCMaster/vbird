@@ -1,0 +1,135 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Signing requests need the caller to prove which commit/workflow produced the
+# artifact, which needs contents:write to attach the result to a Release.
+permissions:
+  contents: write
+
+defaults:
+  run:
+    shell: msys2 {0}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-ninja
+            mingw-w64-x86_64-qt6-base
+
+      - name: Configure
+        run: |
+          export QT_DIR=/mingw64
+          cmake --preset release
+
+      - name: Build
+        run: cmake --build --preset release
+
+      - name: Deploy Qt runtime
+        run: cmake --build --preset release --target deploy
+
+      # Fails the build if any DLL the exe needs isn't actually in the deploy
+      # folder -- catches exactly the "works here, fails everywhere else" class
+      # of bug a local build can't see, since CI has none of our dev machine's
+      # Qt/MinGW already on PATH.
+      - name: Verify portability
+        run: cmake --build --preset release --target check-deps
+
+      - name: Package
+        run: cmake --build --preset release --target package
+
+      - name: Upload build artifact
+        id: upload-unsigned
+        uses: actions/upload-artifact@v7
+        with:
+          name: vbird-win64-unsigned
+          path: build/release/vbird-win64.zip
+    outputs:
+      artifact-id: ${{ steps.upload-unsigned.outputs.artifact-id }}
+
+  # Runs only once the repo has SignPath variables configured (see SIGNING.md)
+  # -- vars.* reads as an empty string when unset, so this whole job shows as
+  # skipped rather than failing until then. wait-for-completion means this job
+  # sits "in progress" until a human Approver clicks approve in the SignPath
+  # dashboard; that is by design, not a hang.
+  sign:
+    needs: build
+    runs-on: windows-latest
+    if: startsWith(github.ref, 'refs/tags/v') && vars.SIGNPATH_ORGANIZATION_ID != ''
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Submit signing request
+        uses: signpath/github-action-submit-signing-request@v2
+        with:
+          api-token: "${{ secrets.SIGNPATH_API_TOKEN }}"
+          organization-id: "${{ vars.SIGNPATH_ORGANIZATION_ID }}"
+          project-slug: "${{ vars.SIGNPATH_PROJECT_SLUG }}"
+          signing-policy-slug: "${{ vars.SIGNPATH_SIGNING_POLICY_SLUG }}"
+          github-artifact-id: "${{ needs.build.outputs.artifact-id }}"
+          wait-for-completion: true
+          output-artifact-directory: signed
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vbird-win64-signed
+          path: signed/vbird-win64.zip
+
+  release:
+    needs: [build, sign]
+    runs-on: windows-latest
+    if: startsWith(github.ref, 'refs/tags/v') && always() && !cancelled() && !failure()
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      # Signed if the sign job ran and succeeded, unsigned otherwise -- so
+      # tagging a release works today, before SignPath is configured, and
+      # starts shipping signed builds the moment it is, with no workflow change.
+      - name: Download signed artifact
+        if: needs.sign.result == 'success'
+        uses: actions/download-artifact@v6
+        with:
+          name: vbird-win64-signed
+          path: dist
+
+      - name: Download unsigned artifact
+        if: needs.sign.result != 'success'
+        uses: actions/download-artifact@v6
+        with:
+          name: vbird-win64-unsigned
+          path: dist
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $signed = "${{ needs.sign.result }}" -eq "success"
+          $notes = if ($signed) {
+            "Windows 10/11 64-bit build, signed via SignPath Foundation. Unzip anywhere and run vbird.exe. See BUILDING.md."
+          } else {
+            "Windows 10/11 64-bit build, unsigned. Unzip anywhere and run vbird.exe. See BUILDING.md."
+          }
+          gh release create "${{ github.ref_name }}" "dist/vbird-win64.zip" `
+            --title "vBird ${{ github.ref_name }}" --notes "$notes" --latest `
+            2>$null
+          if ($LASTEXITCODE -ne 0) {
+            gh release upload "${{ github.ref_name }}" "dist/vbird-win64.zip" --clobber
+          }

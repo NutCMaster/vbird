@@ -24,6 +24,12 @@ Requires MinGW-w64 GCC, CMake 3.21+, Ninja and Qt 6.5+, with `QT_DIR` pointed at
 See [BUILDING.md](BUILDING.md) for the full setup, and for the static build that produces a single
 self-contained exe.
 
+## Code signing
+
+Windows builds are signed free of charge by the [SignPath Foundation](https://signpath.org/) for
+qualifying open-source projects. See [SIGNING.md](SIGNING.md) for the policy, roles, and onboarding
+status.
+
 ## Licence
 
 GPL-3.0. See [LICENSE](LICENSE).
