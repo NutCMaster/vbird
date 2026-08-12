@@ -1,0 +1,28 @@
+# Build output
+build/
+bin/
+*.o
+*.obj
+*.res
+*.exe
+*.dll
+*.a
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+CMakeUserPresets.json
+cmake_install.cmake
+compile_commands.json
+
+# Qt generated
+moc_*.cpp
+qrc_*.cpp
+ui_*.h
+*_autogen/
+
+# Editors
+.vscode/
+.idea/
+*.user
+*.claude

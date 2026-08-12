@@ -1,0 +1,57 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": { "major": 3, "minor": 21, "patch": 0 },
+  "configurePresets": [
+    {
+      "name": "base",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "g++",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+    {
+      "name": "dev",
+      "inherits": "base",
+      "displayName": "Dev (shared Qt, debug)",
+      "description": "Fast incremental builds against a normal Qt install. Needs the Qt DLLs alongside the exe: build the 'deploy' target once.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_PREFIX_PATH": "$env{QT_DIR}"
+      }
+    },
+    {
+      "name": "release",
+      "inherits": "base",
+      "displayName": "Release (shared Qt)",
+      "description": "Optimised build against a normal Qt install. Still needs the Qt DLLs alongside the exe.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_PREFIX_PATH": "$env{QT_DIR}"
+      }
+    },
+    {
+      "name": "dist",
+      "inherits": "base",
+      "displayName": "Dist (static Qt, single exe)",
+      "description": "The shipping build: one self-contained vbird.exe. Requires a static Qt at QT_STATIC_DIR, built by tools/build-static-qt.ps1.",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_PREFIX_PATH": "$env{QT_STATIC_DIR}"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "dev", "configurePreset": "dev" },
+    { "name": "release", "configurePreset": "release" },
+    { "name": "dist", "configurePreset": "dist" },
+    {
+      "name": "dist-check",
+      "configurePreset": "dist",
+      "targets": ["check-deps"],
+      "displayName": "Verify the dist exe has no non-system DLL imports"
+    }
+  ]
+}
