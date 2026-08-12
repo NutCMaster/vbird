@@ -11,7 +11,7 @@ vBird ships as `vbird-win64.zip`. Unpack it anywhere and run `vbird.exe` — no 
 nothing else to install. Windows 10 or 11, 64-bit. Keep the folder together; the exe needs the
 DLLs beside it.
 
-If a SmartScreen warning pops up, its mainly because we do not have any code signatures.
+⚠️ If a SmartScreen warning pops up, its mainly because we do not have any code signatures. ⚠️
 
 ## Building from source
 
