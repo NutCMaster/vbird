@@ -16,7 +16,8 @@ Then from an MSYS2 shell:
 ```bash
 pacman -Syu --noconfirm
 pacman -S --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake \
-                   mingw-w64-x86_64-ninja mingw-w64-x86_64-qt6-base
+                   mingw-w64-x86_64-ninja mingw-w64-x86_64-qt6-base \
+                   mingw-w64-x86_64-qt6-imageformats
 ```
 
 Build from the **MINGW64** shell (not the plain MSYS shell — the toolchain and
