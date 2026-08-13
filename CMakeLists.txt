@@ -35,6 +35,10 @@ endif()
 # console window behind the app.
 qt_add_executable(vbird WIN32
     src/app.cpp
+    src/recent_projects.cpp
+    src/recent_projects.h
+    src/ui/startup_dialog.cpp
+    src/ui/startup_dialog.h
     res/app.rc
 )
 
