@@ -21,7 +21,7 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: msys2/setup-msys2@v2
         with:
@@ -104,21 +104,21 @@ jobs:
       # gh release create shells out to git to resolve the repo, which fails
       # with "not a git repository" on a bare runner -- unlike the build job,
       # nothing here needed the checkout until this step.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Signed if the sign job ran and succeeded, unsigned otherwise -- so
       # tagging a release works today, before SignPath is configured, and
       # starts shipping signed builds the moment it is, with no workflow change.
       - name: Download signed artifact
         if: needs.sign.result == 'success'
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: vbird-win64-signed
           path: dist
 
       - name: Download unsigned artifact
         if: needs.sign.result != 'success'
-        uses: actions/download-artifact@v6
+        uses: actions/download-artifact@v7
         with:
           name: vbird-win64-unsigned
           path: dist
