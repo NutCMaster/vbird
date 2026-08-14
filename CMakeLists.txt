@@ -13,6 +13,12 @@ endif()
 
 find_package(Qt6 6.5 REQUIRED COMPONENTS Core Gui Widgets)
 
+# Vulkan headers/loader/glslc all live in the same MSYS2 mingw64 prefix as Qt,
+# so CMAKE_PREFIX_PATH (already pointed at $env{QT_DIR}/$env{QT_STATIC_DIR} by
+# the presets) resolves this with no extra configuration. glslc is picked up
+# automatically as Vulkan::glslc -- FindVulkan.cmake always searches for it.
+find_package(Vulkan REQUIRED)
+
 # Turns on AUTOMOC/AUTOUIC/AUTORCC. Without this, adding a Q_OBJECT class fails
 # at link time with missing-vtable errors rather than anything self-explanatory.
 qt_standard_project_setup()
@@ -39,6 +45,16 @@ qt_add_executable(vbird WIN32
     src/recent_projects.h
     src/ui/startup_dialog.cpp
     src/ui/startup_dialog.h
+    src/ui/main_window.cpp
+    src/ui/main_window.h
+    src/engine/vulkan_viewport.cpp
+    src/engine/vulkan_viewport.h
+    src/engine/scene_renderer.cpp
+    src/engine/scene_renderer.h
+    src/engine/scene.cpp
+    src/engine/scene.h
+    src/engine/camera.cpp
+    src/engine/camera.h
     res/app.rc
 )
 
@@ -46,7 +62,82 @@ qt_add_executable(vbird WIN32
 # include path. CMake feeds target include dirs to the RC compiler as -I.
 target_include_directories(vbird PRIVATE res)
 
-target_link_libraries(vbird PRIVATE Qt6::Widgets)
+target_link_libraries(vbird PRIVATE Qt6::Widgets Vulkan::Vulkan)
+
+# Validation is expensive and noisy -- only worth paying for in Debug, where
+# main() reads this macro to request the VK_LAYER_KHRONOS_validation layer.
+target_compile_definitions(vbird PRIVATE $<$<CONFIG:Debug>:VBIRD_VULKAN_VALIDATION>)
+
+# Compiles GLSL -> SPIR-V at build time and embeds the result via Qt's
+# resource system, so the .spv ships inside vbird's Qt resources rather than
+# as loose files the deploy/package scripts would need to know about.
+set(VBIRD_SHADER_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/res/shaders/mesh.vert"
+    "${CMAKE_CURRENT_SOURCE_DIR}/res/shaders/mesh.frag"
+    "${CMAKE_CURRENT_SOURCE_DIR}/res/shaders/skybox.vert"
+    "${CMAKE_CURRENT_SOURCE_DIR}/res/shaders/skybox.frag"
+)
+set(VBIRD_SHADER_OUTDIR "${CMAKE_BINARY_DIR}/shaders")
+set(VBIRD_SHADER_SPV
+    "${VBIRD_SHADER_OUTDIR}/mesh.vert.spv"
+    "${VBIRD_SHADER_OUTDIR}/mesh.frag.spv"
+    "${VBIRD_SHADER_OUTDIR}/skybox.vert.spv"
+    "${VBIRD_SHADER_OUTDIR}/skybox.frag.spv"
+)
+
+add_custom_command(
+    OUTPUT ${VBIRD_SHADER_SPV}
+    COMMAND ${CMAKE_COMMAND}
+            -DVBIRD_GLSLC=$<TARGET_FILE:Vulkan::glslc>
+            "-DVBIRD_SHADER_SOURCES=${VBIRD_SHADER_SOURCES}"
+            -DVBIRD_SHADER_OUTDIR=${VBIRD_SHADER_OUTDIR}
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/CompileShaders.cmake"
+    DEPENDS ${VBIRD_SHADER_SOURCES}
+    COMMENT "Compiling GLSL shaders to SPIR-V"
+    VERBATIM
+)
+add_custom_target(shaders DEPENDS ${VBIRD_SHADER_SPV})
+add_dependencies(vbird shaders)
+
+qt_add_resources(vbird "shaders"
+    PREFIX "/shaders"
+    BASE ${VBIRD_SHADER_OUTDIR}
+    FILES ${VBIRD_SHADER_SPV}
+)
+
+# Toolbar icons, embedded the same way the compiled shaders are above: inside
+# vbird's Qt resources, not as loose files the deploy/package scripts need to
+# know about. No compile step needed for these (unlike the shaders), so this
+# just lists the files directly instead of routing through a custom command.
+set(VBIRD_ICON_FILES
+    "${CMAKE_CURRENT_SOURCE_DIR}/res/icons/select.webp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/res/icons/move.webp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/res/icons/rotate.webp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/res/icons/scale.webp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/res/icons/part.webp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/res/icons/spawn.webp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/res/icons/copy.webp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/res/icons/paste.webp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/res/icons/duplicate.webp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/res/icons/workspace.webp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/res/icons/texture.webp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/res/icons/light.webp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/res/icons/play.webp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/res/icons/stop.webp"
+)
+qt_add_resources(vbird "icons"
+    PREFIX "/icons"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/res/icons"
+    FILES ${VBIRD_ICON_FILES}
+)
+
+# Day skybox (Kenney, CC0 -- see res/skybox/License.txt). Same embedding
+# reasoning as the icons above.
+qt_add_resources(vbird "skybox"
+    PREFIX "/skybox"
+    BASE "${CMAKE_CURRENT_SOURCE_DIR}/res/skybox"
+    FILES "${CMAKE_CURRENT_SOURCE_DIR}/res/skybox/skybox-day.png"
+)
 
 target_compile_options(vbird PRIVATE
     -Wall -Wextra

@@ -15,6 +15,17 @@ set(VBIRD_SYSTEM_DLL_PATTERNS
     "^(advapi32|comdlg32|comctl32|version|winmm|imm32|uxtheme|dwmapi|msimg32)\\.dll$"
     "^(ws2_32|iphlpapi|dnsapi|mpr|netapi32|userenv|secur32|crypt32|bcrypt|ncrypt)\\.dll$"
     "^(setupapi|cfgmgr32|rpcrt4|ntdll|msvcrt|d3d11|d3d9|d3d12|dxgi|dxva2|opengl32|glu32)\\.dll$"
+    # vulkan-1.dll: same category as d3d11/opengl32 above -- installed by the
+    # GPU driver (LunarG/Khronos loader, distributed via NVIDIA/AMD/Intel
+    # driver packages), not something Windows ships out of the box, but always
+    # present on any machine with a Vulkan-capable driver. Confirmed on this
+    # dev machine: it predates any tool this project installed. It also isn't
+    # a static import at all -- Qt's QVulkanInstance loads it dynamically at
+    # runtime (like the qwindows.dll platform plugin), so it would never show
+    # up in the transitive-import walk either way. Bundling our own copy
+    # wouldn't help a machine with no compatible driver: Vulkan rendering
+    # can't work there regardless of which vulkan-1.dll is present.
+    "^vulkan-1\\.dll$"
     "^(authz|wtsapi32|winspool\\.drv|oleacc|propsys|windowscodecs|mf|mfplat|mfreadwrite)\\.dll$"
     "^(dbghelp|psapi|powrprof|winhttp|wininet|urlmon|imagehlp|avicap32|msacm32)\\.dll$"
     "^(d3dcompiler_[0-9]+|dcomp|directxmath|xinput[0-9_]*|dsound|dinput8)\\.dll$"

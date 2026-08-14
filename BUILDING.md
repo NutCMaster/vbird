@@ -17,7 +17,9 @@ Then from an MSYS2 shell:
 pacman -Syu --noconfirm
 pacman -S --needed mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake \
                    mingw-w64-x86_64-ninja mingw-w64-x86_64-qt6-base \
-                   mingw-w64-x86_64-qt6-imageformats
+                   mingw-w64-x86_64-qt6-imageformats \
+                   mingw-w64-x86_64-vulkan-headers mingw-w64-x86_64-vulkan-loader \
+                   mingw-w64-x86_64-vulkan-validation-layers mingw-w64-x86_64-shaderc
 ```
 
 Build from the **MINGW64** shell (not the plain MSYS shell — the toolchain and
@@ -86,6 +88,32 @@ anything not present in the folder. A clean result:
 Import analysis still cannot see plugins loaded by filename at runtime, so the
 final check is running the extracted zip on a machine that has never had Qt
 installed.
+
+## Vulkan rendering
+
+The Vulkan loader, headers, validation layer, and `glslc` (shader compiler)
+come from MSYS2 alongside everything else — see the package list above.
+
+**`vulkan-1.dll` is not bundled, deliberately.** Unlike Qt's own DLLs, it isn't
+a static import at all — Qt's `QVulkanInstance` loads it dynamically at
+runtime, the same way the `qwindows.dll` platform plugin gets loaded by
+filename rather than an import-table entry. It's also GPU-driver-provided
+(NVIDIA/AMD/Intel installers all ship the Khronos loader to
+`C:\Windows\System32`), the same category as `d3d11.dll`/`opengl32.dll`, which
+`cmake/SystemDlls.cmake` already treats as system-provided. Bundling our own
+copy wouldn't help a machine with no Vulkan-capable driver — rendering can't
+work there regardless of which loader DLL is present.
+
+**CI cannot verify rendering.** GitHub Actions' `windows-latest` runners have
+no GPU and no Vulkan-capable driver. The `release` CI job only proves the
+Vulkan code compiles and links (`Vulkan::Vulkan`, `Vulkan::glslc`, shader
+compilation all succeed) and that `vulkan-1.dll` ends up in the deployed
+folder via the existing `deploy`/`check-deps` targets. It never launches
+`vbird.exe`, so a change that compiles fine but produces a black screen, a
+validation error, or a crash on `vkCreateInstance` will not be caught by CI —
+it has to be verified locally, on real hardware, with the `dev` preset (Debug
+builds enable `VK_LAYER_KHRONOS_validation`, which prints misuse straight to
+the console).
 
 ## Shipping a single .exe
 

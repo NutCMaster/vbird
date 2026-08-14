@@ -22,6 +22,24 @@ if(NOT VBIRD_SEARCH_DIRS)
     message(FATAL_ERROR "DeployDeps.cmake: pass -DVBIRD_SEARCH_DIRS=<dirs to copy from>")
 endif()
 
+# windeployqt sometimes copies DLLs defensively that nothing in the deployed
+# tree actually loads -- e.g. dxcompiler.dll (DirectX Shader Compiler),
+# apparently bundled because Qt6Gui *can* use QRhi's D3D/DXC shader backend,
+# even though vbird only uses QVulkanWindow and never touches QRhi/QShader.
+# Confirmed by scanning every deployed file's import table: nothing, not even
+# vbird.exe, references it. It's also MSVC-compiled (needs MSVCP140.dll /
+# VCRUNTIME140[_1].dll, which a MinGW build never otherwise needs), so leaving
+# it in place would demand bundling the VC++ redistributable for a file
+# nothing calls. Pruned before the transitive walk below so its own unused
+# dependencies never get demanded.
+set(VBIRD_ORPHAN_DLL_NAMES dxcompiler.dll)
+foreach(_orphan IN LISTS VBIRD_ORPHAN_DLL_NAMES)
+    if(EXISTS "${VBIRD_DIR}/${_orphan}")
+        file(REMOVE "${VBIRD_DIR}/${_orphan}")
+        message(STATUS "Pruned unused ${_orphan} (windeployqt copies it defensively; nothing in vbird references it)")
+    endif()
+endforeach()
+
 # Everything already deployed, including plugins in subdirectories.
 file(GLOB_RECURSE _seed_files "${VBIRD_DIR}/*.dll" "${VBIRD_DIR}/*.exe")
 
